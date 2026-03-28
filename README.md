@@ -109,6 +109,7 @@ if __name__ == "__main__":
 
 - Python 3.10+ (for `|` union types in function signatures)
 - `requests` library
+- `datetime` library
 
 ## Usage
 

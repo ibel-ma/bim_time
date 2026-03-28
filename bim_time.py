@@ -232,11 +232,12 @@ def _parse_zeit(time_str: str) -> datetime | None:
     """
     Parses a HAFAS time string into a datetime object (today, Vienna timezone).
     HAFAS format: "HHMMSS" or "01HHMMSS" (next day).
+    TODO: Handle Error with times after midnight.
     """
     if not time_str:
         return None
 
-    vienna = timezone(timedelta(hours=2))  # CEST; use timedelta(hours=1) for CET
+    vienna = timezone(timedelta(hours=1))  # CEST; use timedelta(hours=1) for CET
     today = datetime.now(vienna).date()
 
     next_day = False
@@ -288,7 +289,7 @@ def get_abfahrten(
     journeys = res.get("jnyL", [])
     product_list = common.get("prodL", [])
 
-    vienna = timezone(timedelta(hours=2))
+    vienna = timezone(timedelta(hours=1))
     now = datetime.now(vienna)
 
     departures = []
@@ -389,6 +390,30 @@ def print_abfahrtstafel(stop_lid: str, stop_name: str = "", max_abfahrten: int =
     print(f"{'='*65}\n")
 
 
+def print_abfahrtstafel_minimal(stop_lid: str, stop_name: str = "", max_abfahrten: int = 10):
+    """Prints a formatted departure board to the console."""
+    departures = get_abfahrten(stop_lid, max_abfahrten=max_abfahrten)
+
+    title = stop_name or "Departure board"
+    print(f"\n{'='*55}")
+    print(f"  {title}")
+    print(f"  As of: {datetime.now().strftime('%H:%M:%S')}")
+    print(f"{'='*55}")
+    print(f"  {'Line':<12} {'Direction':<30} {'Minutes':<8}")
+    print(f"{'-'*55}")
+
+    # set can only store unique values, check is fast
+    output = set()
+
+    for a in departures:
+        if (a.linie, a.richtung) not in output:
+            print(
+                f"  {a.linie:<11}  {a.richtung:<30} {a.countdown_min}"
+            )
+            output.add((a.linie, a.richtung))
+
+    print(f"{'='*55}\n")
+
 # ── Examples ──────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
 
@@ -398,22 +423,4 @@ if __name__ == "__main__":
     )
     print_abfahrtstafel(STEYRERGASSE_LID, stop_name="Graz Steyrergasse")
 
-    # Example 2: Search by name, then fetch departures
-    lid = suche_haltestelle("Jakominiplatz")
-    if lid is None:
-        print("Stop not found.")
-    else:
-        print_abfahrtstafel(lid, stop_name="Graz Jakominiplatz")
-
-    # Example 3: Show all matches for a search query
-    results = suche_alle_haltestellen("Hauptplatz", max_treffer=5)
-    for r in results:
-        print(f"{r['name']}  ->  {r['lid']}")
-
-    # Example 4: Find the nearest stop by coordinates
-    nearby = suche_haltestelle_koordinaten(lat=47.0670, lon=15.4421, radius_m=300)
-    for r in nearby:
-        print(f"{r['distanz_m']:>4}m  {r['name']}")
-
-    if nearby:
-        print_abfahrtstafel(nearby[0]["lid"], stop_name=nearby[0]["name"])
+    print_abfahrtstafel_minimal(STEYRERGASSE_LID, stop_name="Graz Steyrergasse")
