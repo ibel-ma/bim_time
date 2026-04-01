@@ -1,2 +1,6 @@
 /.venv
 /.vscode
+/dist
+/build
+bim_monitor.spec
+.DS_Store

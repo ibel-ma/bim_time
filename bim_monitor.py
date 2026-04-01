@@ -18,6 +18,7 @@ Usage:
     print_abfahrtstafel(lid, stop_name="Graz Steyrergasse")
 """
 
+import sys
 import time
 import requests
 from datetime import datetime, timezone, timedelta
@@ -546,7 +547,18 @@ def print_help():
 # ── Examples ──────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
 
-    searchStr = "Steyrergasse"
-    lid = suche_haltestelle(searchStr)
-    filters = {"richtung": "Liebenau"}
-    bim_monitor(lid, stop_name=searchStr, filters=filters)
+    if len(sys.argv) > 2:
+        try:
+            lid = suche_haltestelle(sys.argv[1])
+            filters = {"richtung": sys.argv[2]}
+            bim_monitor(lid, stop_name=sys.argv[1], filters=filters)
+        except KeyboardInterrupt:
+            clear_terminal()
+            print("\nMonitoring stopped by user. Exiting gracefully...")
+            # Add cleanup code here if needed
+    elif len(sys.argv) > 1:
+        lid = suche_haltestelle(sys.argv[1])
+        print_abfahrtstafel(lid, stop_name=sys.argv[1])
+    else:
+        print_help()
+    
