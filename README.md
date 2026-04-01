@@ -67,6 +67,26 @@ Prints a formatted departure board to the console.
 - Uses `get_abfahrten()` to fetch data
 - Displays line, direction, time, delay status, and countdown
 
+### àrgv`: Arguments
+```python
+if __name__ == "__main__":
+
+    if len(sys.argv) > 2:
+        try:
+            lid = suche_haltestelle(sys.argv[1])
+            filters = {"richtung": sys.argv[2]}
+            bim_monitor(lid, stop_name=sys.argv[1], filters=filters)
+        except KeyboardInterrupt:
+            clear_terminal()
+            print("\nMonitoring stopped by user. Exiting gracefully...")
+            # Add cleanup code here if needed
+    elif len(sys.argv) > 1:
+        lid = suche_haltestelle(sys.argv[1])
+        print_abfahrtstafel(lid, stop_name=sys.argv[1])
+    else:
+        print_help()
+```
+
 ## Examples
 Representations of some use cases:
 
