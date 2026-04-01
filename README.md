@@ -103,6 +103,9 @@ if __name__ == "__main__":
 
     if nearby:
         print_abfahrtstafel(nearby[0]["lid"], stop_name=nearby[0]["name"])
+
+    # Example 5: Live monitor
+    bim_monitor(STEYRERGASSE_LID, stop_name="Graz Steyrergasse", filters={"richtung": "Liebenau"})
 ``` 
 
 ## Requirements
@@ -133,4 +136,5 @@ This script uses the HAFAS API at `verkehrsauskunft.verbundlinie.at` and is desi
 
 ## Thanks
 
-Thanks to the team of [straba.at](https://straba.at/) for the great idea.
+Thanks Melissa for the great idea.
+Also thanks to the team of [straba.at](https://straba.at/) for the inspiration.

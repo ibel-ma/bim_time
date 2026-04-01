@@ -21,7 +21,10 @@ Usage:
 import time
 import requests
 from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo
 from dataclasses import dataclass
+import os
+import platform
 
 
 # ── HAFAS base configuration ──────────────────────────────────────────────────
@@ -237,7 +240,7 @@ def _parse_zeit(time_str: str) -> datetime | None:
     if not time_str:
         return None
 
-    vienna = timezone(timedelta(hours=1))  # CEST; use timedelta(hours=1) for CET
+    vienna = ZoneInfo("Europe/Vienna")  # CEST; use timedelta(hours=1) for CET
     today = datetime.now(vienna).date()
 
     next_day = False
@@ -289,7 +292,7 @@ def get_abfahrten(
     journeys = res.get("jnyL", [])
     product_list = common.get("prodL", [])
 
-    vienna = timezone(timedelta(hours=1))
+    vienna = ZoneInfo("Europe/Vienna")  # CEST; use timedelta(hours=1) for CET
     now = datetime.now(vienna)
 
     departures = []
@@ -392,6 +395,7 @@ def print_abfahrtstafel(stop_lid: str, stop_name: str = "", max_abfahrten: int =
 
 def print_abfahrtstafel_minimal(stop_lid: str, stop_name: str = "", max_abfahrten: int = 10):
     """Prints a formatted departure board to the console."""
+    # TODO: implement filter, line, direction
     departures = get_abfahrten(stop_lid, max_abfahrten=max_abfahrten)
 
     title = stop_name or "Departure board"
@@ -405,22 +409,128 @@ def print_abfahrtstafel_minimal(stop_lid: str, stop_name: str = "", max_abfahrte
     # set can only store unique values, check is fast
     output = set()
 
+    # filter depature list
+    filters = {
+        "richtung": "Liebenau",
+    }
+    departures = filter_departures(departures, filters)
+
     for a in departures:
-        if (a.linie, a.richtung) not in output:
-            print(
-                f"  {a.linie:<11}  {a.richtung:<30} {a.countdown_min}"
-            )
-            output.add((a.linie, a.richtung))
+        #if (a.linie, a.richtung) not in output:
+        print(
+            f"  {a.linie:<11}  {a.richtung:<30} {a.countdown_min}"
+        )
+        output.add((a.linie, a.richtung))
 
     print(f"{'='*55}\n")
+
+
+def filter_departures(departures, filters=None):
+    """
+    Optimized function to filter the list of Abfahrt objects using a dictionary of criteria.
+
+    Args:
+        departures (list): List of Abfahrt objects.
+        filters (dict, optional): Dictionary of filter criteria.
+            Example: {"line": "U3", "direction": "Ottakring", "status": "on_time"}
+
+    Returns:
+        list: Filtered list of Abfahrt objects.
+    """
+    if not filters:
+        return departures
+
+    return [
+        departure
+        for departure in departures
+        if all(
+            (getattr(departure, key) == value)
+            for key, value in filters.items()
+        )
+    ]
+
+def clear_terminal():
+    """Clears the terminal screen."""
+    if platform.system() == "Windows":
+        os.system('cls')
+    else:
+        os.system('clear')
+
+def update_display(departures: list, stop_name: str = "", max_abfahrten: int = 10, last_update_time=None, filters=None):
+    """Prints a formatted departure board to the console."""
+    clear_terminal()
+
+    # calc minutes from last update
+    current_time = time.time()
+    countdown_seconds = current_time - last_update_time
+    countdown_minutes = max(0, int(countdown_seconds / 60))
+
+    title = stop_name or "Departure board"
+    print(f"\n{'='*55}")
+    print(f"  {title}")
+    print(
+    f"  As of: {datetime.now().strftime('%H:%M:%S')} {' '*15}"
+    f"{'Last update: ' if (last_update_time and countdown_minutes > 0) else f'{' '*13}'}"
+    f"{f'({countdown_minutes} min)' if (last_update_time and countdown_minutes > 0) else 'N/A'}"
+        )
+    print(f"{'='*55}")
+    print(f"  {'Line':<12} {'Direction':<30} {'Minutes':<8}")
+    print(f"{'-'*55}")
+
+    # filter depature list
+    departures = filter_departures(departures, filters)
+
+    for a in departures:
+        print(
+            f"  {a.linie:<11}  {a.richtung:<30} {a.countdown_min}"
+        )
+    print(f"{'='*55}")
+    print(f"  exit process with ctrl+c\n")
+
+def bim_monitor(stop_lid: str, stop_name: str = "", max_abfahrten: int = 10, filters=None):
+    # Initial fetch
+    departures = get_abfahrten(stop_lid, max_abfahrten)
+    last_request_time = time.time()
+    # filter before update display
+    # TODO: filter before departure list is generated, to reduce the amount of data to process
+    # TODO: filter for countdown_min < 0 to remove already departed lines
+    # filter depature list
+    departures = filter_departures(departures, filters)
+
+    # update display with initial data
+    update_display(departures, stop_name, last_update_time=last_request_time)
+
+    # wrap in try-except to allow graceful exit on ctrl+c
+    try:
+        while True:
+            current_time = time.time()
+
+            # wait a minute
+            time.sleep(60)
+            # Decrement the value for countdown_min
+            for obj in departures:
+                obj.countdown_min -= 1
+            # remove already departed lines (countdown_min < 0)
+            departures = [obj for obj in departures if obj.countdown_min >= 0]
+            # update display
+            update_display(departures, stop_name, last_update_time=last_request_time)
+
+            # after 5 minutes, fetch new data from API
+            if current_time - last_request_time >= 300:
+                departures = get_abfahrten(stop_lid, max_abfahrten)
+                last_request_time = current_time
+                # filter depature list
+                departures = filter_departures(departures, filters)
+    except KeyboardInterrupt:
+        clear_terminal()
+        print("\nMonitoring stopped by user. Exiting gracefully...")
+        # Add cleanup code here if needed
+
 
 # ── Examples ──────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
 
-    # Example 1: Directly with a known lid
     STEYRERGASSE_LID = (
         "A=1@O=Graz Steyrergasse@X=15444313@Y=47061182@U=81@L=460406600@i=A×at:46:4066@"
     )
-    print_abfahrtstafel(STEYRERGASSE_LID, stop_name="Graz Steyrergasse")
-
-    print_abfahrtstafel_minimal(STEYRERGASSE_LID, stop_name="Graz Steyrergasse")
+    bim_monitor(STEYRERGASSE_LID, stop_name="Graz Steyrergasse", filters={"richtung": "Liebenau"})
