@@ -2,5 +2,6 @@
 /.vscode
 /dist
 /build
+/__pycache__
 .*
 !/.gitignore
