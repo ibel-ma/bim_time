@@ -549,4 +549,5 @@ if __name__ == "__main__":
     searchStr = "Steyrergasse"
     lid = suche_haltestelle(searchStr)
     filters = {"richtung": "Liebenau"}
-    bim_monitor(lid, stop_name=searchStr, filters=filters)
+    print_abfahrtstafel(lid, searchStr)
+    # bim_monitor(lid, stop_name=searchStr, filters=filters)

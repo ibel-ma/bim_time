@@ -140,6 +140,19 @@ if __name__ == "__main__":
 python bim_time.py
 ```
 
+```
+=================================================================
+  Steyrergasse
+  As of: 18:48:10
+=================================================================
+  Line         Direction                      Time     Status
+-----------------------------------------------------------------
+  Straßenbahn 5      Andritz                        18:50         [1 min]
+  Straßenbahn 5      Puntigam                       18:51         [2 min]
+  Straßenbahn 4      Reininghaus                    18:58         [9 min]
+=================================================================
+```
+
 To use the functions from another script:
 
 ```python
