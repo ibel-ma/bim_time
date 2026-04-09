@@ -18,6 +18,7 @@ Usage:
     print_abfahrtstafel(lid, stop_name="Graz Steyrergasse")
 """
 
+import sys
 import time
 import requests
 from datetime import datetime, timezone, timedelta
@@ -60,7 +61,7 @@ def _hafas_request(svc_req: dict) -> dict:
 
 # ── Stop search ───────────────────────────────────────────────────────────────
 
-def suche_alle_haltestellen(name: str, max_treffer: int = 10) -> list[dict]:
+def suche_haltestellen(name: str, max_treffer: int = 10) -> list[dict]:
     """
     Searches for stops by name and returns all matches.
 
@@ -106,33 +107,6 @@ def suche_alle_haltestellen(name: str, max_treffer: int = 10) -> list[dict]:
             results.append({"name": stop_name, "lid": lid, "ext_id": ext_id})
 
     return results
-
-
-def suche_haltestelle(name: str) -> str | None:
-    """
-    Searches for a stop and returns the lid of the first match.
-
-    Args:
-        name: Search string (e.g. "Steyrergasse", "Jakominiplatz")
-
-    Returns:
-        lid string of the first match, or None if nothing found.
-
-    Raises:
-        requests.RequestException: On network or HTTP errors
-        ValueError: On empty search string or HAFAS error
-
-    Example:
-        lid = suche_haltestelle("Steyrergasse")
-        if lid is None:
-            print("Stop not found.")
-        else:
-            departures = get_abfahrten(lid)
-    """
-    results = suche_alle_haltestellen(name, max_treffer=1)
-    if not results:
-        return None
-    return results[0]["lid"]
 
 
 def suche_haltestelle_koordinaten(
@@ -365,64 +339,34 @@ def get_abfahrten(
     return departures
 
 
-def print_abfahrtstafel(stop_lid: str, stop_name: str = "", max_abfahrten: int = 10):
+def print_abfahrtstafel(departures: list, stop_name: str = "", max_abfahrten: int = 10, last_update_time = None):
     """Prints a formatted departure board to the console."""
-    departures = get_abfahrten(stop_lid, max_abfahrten=max_abfahrten)
+
+    # calc minutes from last update
+    if last_update_time:
+        current_time = time.time()
+        countdown_seconds = current_time - last_update_time
+        countdown_minutes = max(0, int(countdown_seconds / 60))
 
     title = stop_name or "Departure board"
-    print(f"\n{'='*65}")
-    print(f"  {title}")
-    print(f"  As of: {datetime.now().strftime('%H:%M:%S')}")
-    print(f"{'='*65}")
-    print(f"  {'Line':<12} {'Direction':<30} {'Time':<8} {'Status'}")
-    print(f"{'-'*65}")
-
+    print(f"\n{'='*75}")
+    print(f" {title}")
+    print(f" As of: {datetime.now().strftime('%H:%M:%S')}" 
+          if not last_update_time else 
+          f" As of: {datetime.now().strftime('%H:%M:%S')} {' ':<37} Last update: {countdown_minutes} min")
+    # countdown = f"{a.countdown_min}" if a.countdown_min > 0 else "now"
+    print(f"{'='*75}")
+    print(f" {'Line':<19} {'Direction':<38} {'Time':<7}  {'Status'}")
+    print(f"{'-'*75}")
+    # print departures
     for a in departures:
         time_str = a.echt_zeit if a.echt_zeit else a.plan_zeit
-        delay = ""
-        if a.verspaetung_min > 0:
-            delay = f"(+{a.verspaetung_min}')"
-        elif a.verspaetung_min < 0:
-            delay = f"({a.verspaetung_min}')"
-
-        countdown = f"{a.countdown_min} min" if a.countdown_min > 0 else "now"
         print(
-            f"  {a.typ} {a.linie:<5}  {a.richtung:<30} {time_str} {delay:<7} [{countdown}]"
+            f" {a.typ:<12} {a.linie:<6} {a.richtung:<38} ({time_str})  [{a.countdown_min}]"
         )
-
-    print(f"{'='*65}\n")
-
-
-def print_abfahrtstafel_minimal(stop_lid: str, stop_name: str = "", max_abfahrten: int = 10):
-    """Prints a formatted departure board to the console."""
-    # TODO: implement filter, line, direction
-    departures = get_abfahrten(stop_lid, max_abfahrten=max_abfahrten)
-
-    title = stop_name or "Departure board"
-    print(f"\n{'='*55}")
-    print(f"  {title}")
-    print(f"  As of: {datetime.now().strftime('%H:%M:%S')}")
-    print(f"{'='*55}")
-    print(f"  {'Line':<12} {'Direction':<30} {'Minutes':<8}")
-    print(f"{'-'*55}")
-
-    # set can only store unique values, check is fast
-    output = set()
-
-    # filter depature list
-    filters = {
-        "richtung": "Liebenau",
-    }
-    departures = filter_departures(departures, filters)
-
-    for a in departures:
-        #if (a.linie, a.richtung) not in output:
-        print(
-            f"  {a.linie:<11}  {a.richtung:<30} {a.countdown_min}"
-        )
-        output.add((a.linie, a.richtung))
-
-    print(f"{'='*55}\n")
+    print(f"{'='*75}")
+    if last_update_time:
+        print(f" Running... Press Ctrl+C to stop.\n")
 
 
 def filter_departures(departures, filters=None):
@@ -449,6 +393,7 @@ def filter_departures(departures, filters=None):
         )
     ]
 
+
 def clear_terminal():
     """Clears the terminal screen."""
     if platform.system() == "Windows":
@@ -456,75 +401,40 @@ def clear_terminal():
     else:
         os.system('clear')
 
-def update_display(departures: list, stop_name: str = "", max_abfahrten: int = 10, last_update_time=None, filters=None):
-    """Prints a formatted departure board to the console."""
-    clear_terminal()
-
-    # calc minutes from last update
-    current_time = time.time()
-    countdown_seconds = current_time - last_update_time
-    countdown_minutes = max(0, int(countdown_seconds / 60))
-
-    title = stop_name or "Departure board"
-    print(f"\n{'='*55}")
-    print(f"  {title}")
-    print(
-    f"  As of: {datetime.now().strftime('%H:%M:%S')} {' '*15}"
-    f"{'Last update: ' if (last_update_time and countdown_minutes > 0) else f'{' '*13}'}"
-    f"{f'({countdown_minutes} min)' if (last_update_time and countdown_minutes > 0) else 'N/A'}"
-        )
-    print(f"{'='*55}")
-    print(f"  {'Line':<12} {'Direction':<30} {'Minutes':<8}")
-    print(f"{'-'*55}")
-
-    # filter depature list
-    departures = filter_departures(departures, filters)
-
-    for a in departures:
-        print(
-            f"  {a.linie:<11}  {a.richtung:<30} {a.countdown_min}"
-        )
-    print(f"{'='*55}")
-    print(f"  exit process with ctrl+c\n")
 
 def bim_monitor(stop_lid: str, stop_name: str = "", max_abfahrten: int = 10, filters=None):
     # Initial fetch
     departures = get_abfahrten(stop_lid, max_abfahrten)
     last_request_time = time.time()
-    # filter before update display
-    # TODO: filter before departure list is generated, to reduce the amount of data to process
-    # TODO: filter for countdown_min < 0 to remove already departed lines
     # filter depature list
     departures = filter_departures(departures, filters)
 
     # update display with initial data
-    update_display(departures, stop_name, last_update_time=last_request_time)
+    print_abfahrtstafel(departures, stop_name, last_update_time=last_request_time)
 
-    # wrap in try-except to allow graceful exit on ctrl+c
-    try:
-        while True:
-            current_time = time.time()
+    while True:
+        current_time = time.time()
 
-            # wait a minute
-            time.sleep(60)
-            # Decrement the value for countdown_min
-            for obj in departures:
-                obj.countdown_min -= 1
-            # remove already departed lines (countdown_min < 0)
-            departures = [obj for obj in departures if obj.countdown_min >= 0]
-            # update display
-            update_display(departures, stop_name, last_update_time=last_request_time)
+        # wait a minute
+        time.sleep(60)
 
-            # after 5 minutes, fetch new data from API
-            if current_time - last_request_time >= 300:
-                departures = get_abfahrten(stop_lid, max_abfahrten)
-                last_request_time = current_time
-                # filter depature list
-                departures = filter_departures(departures, filters)
-    except KeyboardInterrupt:
-        clear_terminal()
-        print("\nMonitoring stopped by user. Exiting gracefully...")
-        # Add cleanup code here if needed
+        # Decrement the value for countdown_min
+        for obj in departures:
+            obj.countdown_min -= 1
+        
+        # remove already departed lines (countdown_min < 0)
+        departures = [obj for obj in departures if obj.countdown_min >= 0]
+
+        # after 5 minutes, fetch new data from API
+        if current_time - last_request_time >= 300:
+            departures = get_abfahrten(stop_lid, max_abfahrten)
+            last_request_time = current_time
+            departures = filter_departures(departures, filters)
+
+        # update display
+        print_abfahrtstafel(departures, stop_name, last_update_time=last_request_time)
+        
+
 
 def print_help():
     help_text = """
@@ -538,16 +448,54 @@ def print_help():
         arg2: (Optional) Direction (depends on line, e.g. "Liebenau")
 
         Example:
-        python3 bim_monitor.py Location Direction
+        pythone bim_monitor.py --help
+        python3 bim_monitor.py Location Direction(optional) --live
         python3 bim_monitor.py Location
         """
     print(help_text)
 
 # ── Examples ──────────────────────────────────────────────────────────────────
-if __name__ == "__main__":
+def main():
+    if len(sys.argv) < 2 or sys.argv[1] == "--help":
+        print_help()
+        return
 
-    searchStr = "Steyrergasse"
-    lid = suche_haltestelle(searchStr)
-    filters = {"richtung": "Liebenau"}
-    print_abfahrtstafel(lid, searchStr)
-    # bim_monitor(lid, stop_name=searchStr, filters=filters)
+    # Argument-Parsing
+    stop_name = sys.argv[1]
+    direction = sys.argv[2] if len(sys.argv) >= 3 else None
+    live_flag = sys.argv[3] if len(sys.argv) >= 4 else None
+
+    # Suche nach Haltestellen
+    stops = suche_haltestellen(stop_name, max_treffer=1)
+    if not stops:
+        print("Keine Haltestellen gefunden.")
+        return
+
+    lid = stops[0]["lid"]
+
+    # Abfahrten abrufen
+    departures = get_abfahrten(lid)
+
+    # Filter Richtung
+    if direction:
+        filters = {"richtung": direction}
+        try:
+            departures = filter_departures(departures, filters)
+        except ValueError as e:
+            print(e)
+            return
+
+    # Live-Modus oder einmalige Ausgabe
+    if live_flag == "--live":
+        try:
+
+            bim_monitor(lid, stop_name=stop_name, filters=filters)
+        except KeyboardInterrupt:
+            clear_terminal()
+            print("\nMonitoring stopped by user. Exiting gracefully...")
+            # Add cleanup code here if needed
+    else:
+        print_abfahrtstafel(departures, stop_name)
+
+if __name__ == "__main__":
+    main()

@@ -16,19 +16,12 @@ The script provides functions to:
 ### `_hafas_request(svc_req: dict) -> dict`
 Sends an HTTP POST request to the HAFAS API and returns the raw JSON response. It uses fixed client and authentication payload data.
 
-### `suche_alle_haltestellen(name: str, max_treffer: int = 10) -> list[dict]`
+### `suche_haltestellen(name: str, max_treffer: int = 10) -> list[dict]`
 Searches for stops matching the provided name and returns all matches.
 
 Returns:
 - A list of objects with `name`, `lid`, and `ext_id`
 - An empty list if no matches are found
-
-### `suche_haltestelle(name: str) -> str | None`
-Searches for a stop and returns the `lid` of the first match.
-
-Returns:
-- `lid` of the first matching stop
-- `None` if no stop is found
 
 ### `suche_haltestelle_koordinaten(lat: float, lon: float, radius_m: int = 500, max_treffer: int = 5) -> list[dict]`
 Searches for stops within a radius around the given GPS coordinates.
@@ -61,7 +54,7 @@ Loads the next departures for a stop and returns them as a list of `Abfahrt` obj
 - `max_abfahrten`: Maximum number of departures to return
 - `filter_produkte`: Product filter value (default `4087` = all Graz Linien products)
 
-### `print_abfahrtstafel(stop_lid: str, stop_name: str = "", max_abfahrten: int = 10)`
+### `print_abfahrtstafel(departures: list, stop_name: str = "", max_abfahrten: int = 10, last_update_time = None)`
 Prints a formatted departure board to the console.
 
 - Uses `get_abfahrten()` to fetch data
@@ -69,22 +62,7 @@ Prints a formatted departure board to the console.
 
 ### àrgv`: Arguments
 ```python
-if __name__ == "__main__":
 
-    if len(sys.argv) > 2:
-        try:
-            lid = suche_haltestelle(sys.argv[1])
-            filters = {"richtung": sys.argv[2]}
-            bim_monitor(lid, stop_name=sys.argv[1], filters=filters)
-        except KeyboardInterrupt:
-            clear_terminal()
-            print("\nMonitoring stopped by user. Exiting gracefully...")
-            # Add cleanup code here if needed
-    elif len(sys.argv) > 1:
-        lid = suche_haltestelle(sys.argv[1])
-        print_abfahrtstafel(lid, stop_name=sys.argv[1])
-    else:
-        print_help()
 ```
 
 ## Examples
@@ -96,36 +74,7 @@ Representations of some use cases:
 4. Find nearby stops by GPS coordinates and display the nearest stop
 
 ```python
-if __name__ == "__main__":
 
-    # Example 1: Directly with a known lid
-    STEYRERGASSE_LID = (
-        "A=1@O=Graz Steyrergasse@X=15444313@Y=47061182@U=81@L=460406600@i=A×at:46:4066@"
-    )
-    print_abfahrtstafel(STEYRERGASSE_LID, stop_name="Graz Steyrergasse")
-
-    # Example 2: Search by name, then fetch departures
-    lid = suche_haltestelle("Jakominiplatz")
-    if lid is None:
-        print("Stop not found.")
-    else:
-        print_abfahrtstafel(lid, stop_name="Graz Jakominiplatz")
-
-    # Example 3: Show all matches for a search query
-    results = suche_alle_haltestellen("Hauptplatz", max_treffer=5)
-    for r in results:
-        print(f"{r['name']}  ->  {r['lid']}")
-
-    # Example 4: Find the nearest stop by coordinates
-    nearby = suche_haltestelle_koordinaten(lat=47.0670, lon=15.4421, radius_m=300)
-    for r in nearby:
-        print(f"{r['distanz_m']:>4}m  {r['name']}")
-
-    if nearby:
-        print_abfahrtstafel(nearby[0]["lid"], stop_name=nearby[0]["name"])
-
-    # Example 5: Live monitor
-    bim_monitor(STEYRERGASSE_LID, stop_name="Graz Steyrergasse", filters={"richtung": "Liebenau"})
 ``` 
 
 ## Requirements
@@ -141,26 +90,17 @@ python bim_time.py
 ```
 
 ```
-=================================================================
-  Steyrergasse
-  As of: 18:48:10
-=================================================================
-  Line         Direction                      Time     Status
------------------------------------------------------------------
-  Straßenbahn 5      Andritz                        18:50         [1 min]
-  Straßenbahn 5      Puntigam                       18:51         [2 min]
-  Straßenbahn 4      Reininghaus                    18:58         [9 min]
-=================================================================
-```
-
-To use the functions from another script:
-
-```python
-from bim_time import suche_haltestelle, get_abfahrten, print_abfahrtstafel
-
-lid = suche_haltestelle("Jakominiplatz")
-if lid:
-    print_abfahrtstafel(lid, stop_name="Graz Jakominiplatz")
+===========================================================================
+ Steyrergasse
+ As of: 01:03                                          Last update: 0 min
+===========================================================================
+ Line                Direction                              Time     Status
+---------------------------------------------------------------------------
+ Straßenbahn  4      Liebenau                               (04:53)  [229]
+ Straßenbahn  4      Liebenau                               (05:03)  [239]
+ Straßenbahn  4      Liebenau                               (05:23)  [259]
+===========================================================================
+Running... Press Ctrl+C to stop.
 ```
 
 ## Notes
